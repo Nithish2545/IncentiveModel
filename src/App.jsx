@@ -1,10 +1,11 @@
 import "./App.css";
-import IncentiveModel from "./IncentiveModel";
+import Testing from "./Testing";
 
 function App() {
   return (
     <div className="container mx-auto">
-      <IncentiveModel />
+      {/* <IncentiveModel /> */}
+      <Testing/>
     </div>
   );
 }
