@@ -8,6 +8,21 @@ import {
 import { format, startOfWeek, addDays, subWeeks } from "date-fns";
 import { db } from "../firebase";
 
+const months = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]; // List of months
+
 async function fetchData(DateRange) {
   try {
     let queryRef = collection(db, "Testing");
@@ -34,6 +49,7 @@ async function fetchData(DateRange) {
     const formattedLastWeekStart = Timestamp.fromDate(
       new Date(format(lastWeekStart, "yyyy-MM-dd"))
     );
+
     const formattedLastWeekEnd = Timestamp.fromDate(
       new Date(format(lastWeekEnd, "yyyy-MM-dd"))
     );
@@ -91,8 +107,9 @@ async function getTotalBookings(DateRange) {
 }
 
 async function AvgBookingValue(DateRange) {
-  const result =
-    (await getRevenue(DateRange)) / (await getTotalBookings(DateRange));
+  const revenue = await getRevenue(DateRange);
+  const totalBookings = await getTotalBookings(DateRange);
+  const result = totalBookings === 0 ? 0 : revenue / totalBookings;
   return result.toFixed(2);
 }
 
@@ -146,10 +163,81 @@ const groupByPickupBookedBy = async (DateRange) => {
   }, {});
 };
 
+async function TopPerformer(DateRange) {
+  const data = await groupByPickupBookedBy(DateRange);
+  let topPerformer = { name: null, totalCost: 0, totalBookings: 0 };
+  for (const person in data) {
+    const bookings = data[person].bookings;
+    const totalCost = bookings.reduce(
+      (sum, booking) => sum + (booking.logisticCost || 0),
+      0
+    );
+    const totalBookings = bookings.length;
+    if (totalCost > topPerformer.totalCost) {
+      topPerformer = { name: person, totalCost, totalBookings };
+    }
+  }
+  return topPerformer;
+}
+
+function IncentiveCalculator(BookingCount) {
+  if (BookingCount < 3) {
+    return 0;
+  } else if (BookingCount === 3) {
+    return BookingCount * 20;
+  } else if (BookingCount >= 4 && BookingCount <= 5) {
+    return 3 * 20 + (BookingCount - 3) * 30;
+  } else if (BookingCount >= 6 && BookingCount <= 7) {
+    return 3 * 20 + 2 * 30 + (BookingCount - 5) * 50;
+  }
+}
+
+// Transform data into the required format
+const transformData = async (DateRange) => {
+  const data = await fetchData(DateRange);
+  // Convert Firebase timestamp to dd-mm-yyyy format
+  const convertToDate = (timestamp) => {
+    const date = new Date(timestamp.seconds * 1000);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+  return Object.values(
+    data.reduce((result, item) => {
+      const formattedDate = convertToDate(item.pickupDatetime);
+      const name = item.pickupBookedBy;
+      const key = `${name}_${formattedDate}`;
+
+      // Ensure the name exists in the dataset
+      if (!result[name]) {
+        result[name] = { name, [key]: { name_date: key, bookings: [] } };
+      }
+
+      // Ensure the date key exists under the name
+      if (!result[name][key]) {
+        result[name][key] = { name_date: key, bookings: [] };
+      }
+
+      // Push the booking into the relevant date key
+      result[name][key].bookings.push({
+        ...item,
+        pickupDatetime: formattedDate,
+      });
+
+      return result;
+    }, {})
+  );
+};
+
 export default {
   getRevenue: getRevenue,
   getTotalBookings: getTotalBookings,
   AvgBookingValue: AvgBookingValue,
   fetchLoginCredentials: fetchLoginCredentials,
   groupByPickupBookedBy: groupByPickupBookedBy,
+  TopPerformer: TopPerformer,
+  months: months,
+  IncentiveCalculator: IncentiveCalculator,
+  transformData: transformData,
 };

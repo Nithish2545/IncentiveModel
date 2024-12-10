@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import utility from "./Utility/utilityFunctions";
+
 function IncentiveModel() {
   const [DateRange, setDateRange] = useState("This Week"); // Default value set to "This Week"
   const currentYear = new Date().getFullYear(); // Get the current year
@@ -8,35 +9,78 @@ function IncentiveModel() {
   const [TotalRevenue, setRevenue] = useState(0);
   const [AvgBookingvalue, setAvgBookingvalue] = useState(0);
   const [groupedData, setgroupedData] = useState({});
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ]; // List of months
-  const data = [
-    { name: "John Doe", bookings: 24, incentive: "$200" },
-    { name: "Jane Smith", bookings: 18, incentive: "$150" },
-    { name: "Emily Davis", bookings: 30, incentive: "$250" },
-    { name: "Michael Brown", bookings: 15, incentive: "$100" },
-  ];
+  const [TopPerformer, setTopPerformer] = useState({});
+
+  const downloadCSV = (dataset, person) => {
+    dataset = [dataset.find((entry) => entry.name === person)];
+    if (dataset[0] == null) {
+      return alert("Data not found!");
+    }
+    // Create CSV content
+    const headers = [
+      "name",
+      "name_date",
+      "pickuparea",
+      "pickupDatetime",
+      "awbNumber",
+      "status",
+      "pickupBookedBy",
+      "logisticCost",
+      "actualNoOfPackages",
+      "content",
+    ];
+
+    const rows = [];
+    dataset.forEach((entry) => {
+      Object.keys(entry).forEach((key) => {
+        if (Array.isArray(entry[key]?.bookings)) {
+          const groupRows = entry[key].bookings.map((booking, index) => {
+            if (index === 0) {
+              // First row includes all details
+              return {
+                name: entry.name,
+                name_date: key,
+                ...booking,
+              };
+            } else {
+              // Subsequent rows leave `name` and `name_date` blank
+              return {
+                name: "",
+                name_date: "",
+                ...booking,
+              };
+            }
+          });
+          rows.push(...groupRows, {}); // Add blank row after group
+        }
+      });
+    });
+
+    const csvContent =
+      headers.join(",") +
+      "\n" +
+      rows
+        .map((row) =>
+          headers
+            .map((header) => (row[header] !== undefined ? row[header] : ""))
+            .join(",")
+        )
+        .join("\n");
+
+    // Trigger download
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${person}_dataset.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   function getSalesPersonBookings(person) {
     return groupedData[person]?.bookings.length
       ? groupedData[person]?.bookings.length
       : 0;
-    // console.log(groupedData[person]?.pickupBookedBy);
-    // Object.keys(groupedData).forEach((person) => {
-    // console.log(groupedData[person]?.bookings?.length);
-    // });
   }
 
   useEffect(() => {
@@ -46,14 +90,24 @@ function IncentiveModel() {
       setAvgBookingvalue(await utility.AvgBookingValue(DateRange));
       setLoginCredentials(await utility.fetchLoginCredentials(DateRange));
       setgroupedData(await utility.groupByPickupBookedBy(DateRange));
-      // console.log(await utility.groupByPickupBookedBy(DateRange));
-      // getSalesPersonBookings(
-      //   "smitha",
-      //   await utility.groupByPickupBookedBy(DateRange)
-      // );
+      setTopPerformer(await utility.TopPerformer(DateRange));
     }
     getData();
   }, [DateRange]);
+
+  function FirtLetterCaps(name) {
+    return name?.charAt(0).toUpperCase() + name?.slice(1);
+  }
+
+  function findIncentive(person) {
+    // console.log(
+    //   person,
+    //   utility.IncentiveCalculator(getSalesPersonBookings(person))
+    // );
+    return utility.IncentiveCalculator(getSalesPersonBookings(person));
+  }
+
+  // console.log(findIncentive("dinesh"));
 
   return (
     <div className="flex flex-col gap-6 p-6 bg-gray-50 min-h-screen">
@@ -84,7 +138,7 @@ function IncentiveModel() {
                 </option>
                 <option value="This Week">This Week</option>
                 <option value="Last Week">Last Week</option>
-                <option value="Custom Range">Custom Range</option>
+                {/* <option value="Custom Range">Custom Range</option> */}
               </select>
             </div>
             {/* Month Filter */}
@@ -100,7 +154,7 @@ function IncentiveModel() {
                 name="month"
                 className="w-full border border-gray-300 rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500"
               >
-                {months.map((month, index) => (
+                {utility?.months.map((month, index) => (
                   <option key={index} value={`${month} ${currentYear}`}>
                     {month} {currentYear}
                   </option>
@@ -108,34 +162,7 @@ function IncentiveModel() {
               </select>
             </div>
           </div>
-
           {/* Custom Range Picker */}
-          {"Custom Range" === "Custom Range" && (
-            <div className="flex gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  name="start"
-                  value={""}
-                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  name="end"
-                  value={""}
-                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500"
-                />
-              </div>
-            </div>
-          )}
 
           {/* Apply Filters Button */}
           <button
@@ -189,7 +216,9 @@ function IncentiveModel() {
           {/* Top Performer */}
           <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
             <h2 className="text-lg font-medium text-gray-700">Top Performer</h2>
-            <p className="text-2xl font-bold text-red-600">John</p>
+            <p className="text-2xl font-bold text-red-600">
+              {FirtLetterCaps(TopPerformer?.name)}
+            </p>
           </div>
         </div>
       </div>
@@ -210,7 +239,7 @@ function IncentiveModel() {
                 />
                 <div>
                   <p className="text-lg font-semibold text-gray-800">
-                    {d.name.charAt(0).toUpperCase() + d.name.slice(1)}
+                    {FirtLetterCaps(d.name)}
                   </p>
                   <p className="text-sm text-gray-500">{d.role}</p>
                 </div>
@@ -227,7 +256,12 @@ function IncentiveModel() {
                   src="download-minimalistic-svgrepo-com 1.svg"
                   alt=""
                 />
-                <span className="text-sm font-medium text-gray-600">
+                <span
+                  className="text-sm font-medium text-gray-600"
+                  onClick={async () => {
+                    downloadCSV(await utility.transformData(DateRange), d.name);
+                  }}
+                >
                   Download Report
                 </span>
               </button>
@@ -269,13 +303,10 @@ function IncentiveModel() {
                     {row.name}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">
-                    {/* {getSalesPersonBookings(row.name) <= 9
-                      ? `0${getSalesPersonBookings(row.name)}`
-                      : getSalesPersonBookings(row.name)} */}
                     {String(getSalesPersonBookings(row.name)).padStart(2, "0")}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">
-                    {/* {row.incentive} */}
+                    ₹{findIncentive(row.name)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">
                     <button className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 focus:ring-2 focus:ring-purple-500">
