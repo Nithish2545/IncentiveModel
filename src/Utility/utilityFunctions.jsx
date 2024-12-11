@@ -259,23 +259,53 @@ const transformData = async (DateRange) => {
 const downloadCSV = async (person, DateRange) => {
   var dataset = await transformData(DateRange);
 
+  // Filter dataset for the specified person
   dataset = [dataset.find((entry) => entry.name === person)];
   if (dataset[0] == null) {
     return alert("Data not found!");
   }
 
-  // Create CSV content
+  // Define CSV headers
   const headers = [
+    // Personal Details
     "name",
     "name_date",
-    "pickuparea",
-    "pickupDatetime",
     "awbNumber",
-    "status",
+    "consigneename",
+    "consigneephonenumber",
+    "consignorname",
+    "consignorphonenumber",
+
+    // Pickup Information
     "pickupBookedBy",
-    "logisticCost",
+    "pickupDatetime",
+    "packageConnectedDataTime",
+    "pickUpPersonName",
+    "pickuparea",
+    "pincode",
+    "rtoIfAny",
+
+    // Package Details
     "actualNoOfPackages",
-    "content",
+    "actualWeight",
+    "weightapx",
+    "postPickupWeight",
+    "discountCost",
+    "costKg",
+    "logisticCost",
+
+    // Destination and Status
+    "destination",
+    "service",
+    "status",
+
+    // Vendor Details
+    "vendorAwbnumber",
+    "vendorName",
+    "franchise",
+
+    // Other Details
+    "PaymentComfirmedDate",
   ];
 
   const rows = [];
@@ -284,27 +314,27 @@ const downloadCSV = async (person, DateRange) => {
     Object.keys(entry).forEach((key) => {
       if (Array.isArray(entry[key]?.bookings)) {
         const groupRows = entry[key].bookings.map((booking, index) => {
+          const row = headers.reduce((acc, header) => {
+            acc[header] = booking[header] || entry[header] || ""; // Use booking data, fallback to entry data, or blank
+            return acc;
+          }, {});
+
           if (index === 0) {
-            // First row includes all details
-            return {
-              name: entry.name,
-              name_date: key,
-              ...booking,
-            };
+            row.name = entry.name; // Include `name` only for the first row
+            row.name_date = key; // Include `name_date` only for the first row
           } else {
-            // Subsequent rows leave `name` and `name_date` blank
-            return {
-              name: "",
-              name_date: "",
-              ...booking,
-            };
+            row.name = ""; // Blank for subsequent rows
+            row.name_date = ""; // Blank for subsequent rows
           }
+
+          return row;
         });
         rows.push(...groupRows, {}); // Add blank row after group
       }
     });
   });
 
+  // Create CSV content
   const csvContent =
     headers.join(",") +
     "\n" +
