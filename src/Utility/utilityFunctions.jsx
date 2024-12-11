@@ -8,6 +8,28 @@ import {
 import { format, startOfWeek, addDays, subWeeks } from "date-fns";
 import { db } from "../firebase";
 
+function extractDate(dateString) {
+  // Split the string at the '&' character and return the first part (the date)
+  const datePart = dateString.split(" &")[0];
+  return datePart;
+}
+function convertDateToTimestamp(dateString) {
+  const result = extractDate(dateString);
+  const [day, month, year] = result.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const seconds = Math.floor(date.getTime() / 1000);
+  const nanoseconds = (date.getTime() % 1000) * 1e6;
+  return {
+    seconds,
+    nanoseconds,
+  };
+}
+
+console.log(
+  "convertDateToTimestamp",
+  convertDateToTimestamp("29-11-2024 &5 PM")
+);
+
 const months = [
   "January",
   "February",
@@ -25,7 +47,7 @@ const months = [
 
 async function fetchData(DateRange) {
   try {
-    let queryRef = collection(db, "Testing");
+    let queryRef = collection(db, "pickup");
 
     // Get current date for date range
     const currentDate = new Date();
@@ -37,7 +59,6 @@ async function fetchData(DateRange) {
     // Get last week's range (Saturday to Friday)
     const lastWeekStart = subWeeks(currentWeekStart, 1);
     const lastWeekEnd = addDays(lastWeekStart, 6);
-
     // Format dates to "yyyy-MM-dd" format for comparison
     const formattedStartDate = Timestamp.fromDate(
       new Date(format(currentWeekStart, "yyyy-MM-dd"))
@@ -56,38 +77,43 @@ async function fetchData(DateRange) {
 
     // Conditional query based on selected DateRange
     if (DateRange === "This Week") {
-      // console.log(
-      //   "formattedStartDate:",
-      //   format(currentWeekStart, "yyyy-MM-dd")
-      // );
-      // console.log("formattedEndDate:", format(currentWeekEnd, "yyyy-MM-dd"));
-      // Firestore query (but note: we will handle date comparison manually later)
+      // console.log("formattedStartDate", currentWeekStart);
       queryRef = query(
-        collection(db, "Testing"),
-        where("pickupDatetime", ">=", formattedStartDate),
-        where("pickupDatetime", "<=", formattedEndDate)
+        collection(db, "pickup"),
+        where("status", "in", ["PAYMENT DONE", "SHIPMENT CONNECTED"])
       );
     } else if (DateRange === "Last Week") {
-      // console.log(
-      //   "formattedLastWeekStart:",
-      //   format(lastWeekStart, "yyyy-MM-dd")
-      // );
-      // console.log("formattedLastWeekEnd:", format(lastWeekEnd, "yyyy-MM-dd"));
-      // Firestore query for last week
       queryRef = query(
-        collection(db, "Testing"),
-        where("pickupDatetime", ">=", formattedLastWeekStart),
-        where("pickupDatetime", "<=", formattedLastWeekEnd)
+        collection(db, "pickup"),
+        where("status", "in", ["PAYMENT DONE", "SHIPMENT CONNECTED"])
       );
     }
+
     const querySnapshot = await getDocs(queryRef);
     const fetchedData = querySnapshot.docs.map((doc) => {
       const data = doc.data();
-      return { ...data }; // Attach the parsed date and in-range check
+      return { ...data }; // Attach the parsed data
     });
-    return fetchedData;
+    // Update the fetched data by converting pickupDatetime to Timestamp
+    const updatedData = fetchedData.map((item) => ({
+      ...item,
+      pickupDatetime: convertDateToTimestamp(item.pickupDatetime),
+    }));
+    console.log("DateRange", DateRange, "updatedData", updatedData);
+
+    // Filter based on the selected DateRange
+    const filteredData = updatedData.filter((item) =>
+      DateRange === "This Week"
+        ? item.pickupDatetime.seconds >= formattedStartDate.seconds &&
+          item.pickupDatetime.seconds <= formattedEndDate.seconds
+        : item.pickupDatetime.seconds >= formattedLastWeekStart.seconds &&
+          item.pickupDatetime.seconds <= formattedLastWeekEnd.seconds
+    );
+
+    return filteredData;
   } catch (error) {
-    return "Error fetching pickup data: ", error;
+    console.error("Error fetching pickup data:", error);
+    return [];
   }
 }
 
@@ -177,18 +203,18 @@ async function TopPerformer(DateRange) {
       topPerformer = { name: person, totalCost, totalBookings };
     }
   }
-  return topPerformer;
+  return topPerformer.name ? topPerformer.name : "N/A";
 }
 
 function IncentiveCalculator(BookingCount) {
   if (BookingCount < 3) {
     return 0;
   } else if (BookingCount === 3) {
-    return BookingCount * 20;
+    return BookingCount * 50;
   } else if (BookingCount >= 4 && BookingCount <= 5) {
-    return 3 * 20 + (BookingCount - 3) * 30;
+    return 3 * 60;
   } else if (BookingCount >= 6 && BookingCount <= 7) {
-    return 3 * 20 + 2 * 30 + (BookingCount - 5) * 50;
+    return 3 * 75;
   }
 }
 
@@ -230,6 +256,82 @@ const transformData = async (DateRange) => {
   );
 };
 
+const downloadCSV = async (person, DateRange) => {
+  var dataset = await transformData(DateRange);
+
+  dataset = [dataset.find((entry) => entry.name === person)];
+  if (dataset[0] == null) {
+    return alert("Data not found!");
+  }
+
+  // Create CSV content
+  const headers = [
+    "name",
+    "name_date",
+    "pickuparea",
+    "pickupDatetime",
+    "awbNumber",
+    "status",
+    "pickupBookedBy",
+    "logisticCost",
+    "actualNoOfPackages",
+    "content",
+  ];
+
+  const rows = [];
+
+  dataset.forEach((entry) => {
+    Object.keys(entry).forEach((key) => {
+      if (Array.isArray(entry[key]?.bookings)) {
+        const groupRows = entry[key].bookings.map((booking, index) => {
+          if (index === 0) {
+            // First row includes all details
+            return {
+              name: entry.name,
+              name_date: key,
+              ...booking,
+            };
+          } else {
+            // Subsequent rows leave `name` and `name_date` blank
+            return {
+              name: "",
+              name_date: "",
+              ...booking,
+            };
+          }
+        });
+        rows.push(...groupRows, {}); // Add blank row after group
+      }
+    });
+  });
+
+  const csvContent =
+    headers.join(",") +
+    "\n" +
+    rows
+      .map((row) =>
+        headers
+          .map((header) => (row[header] !== undefined ? row[header] : ""))
+          .join(",")
+      )
+      .join("\n");
+
+  // Trigger download
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${person}_dataset.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+function getSalesPersonBookings(person) {
+  return groupedData[person]?.bookings.length
+    ? groupedData[person]?.bookings.length
+    : 0;
+}
+
 export default {
   getRevenue: getRevenue,
   getTotalBookings: getTotalBookings,
@@ -240,4 +342,6 @@ export default {
   months: months,
   IncentiveCalculator: IncentiveCalculator,
   transformData: transformData,
+  downloadCSV: downloadCSV,
+  getSalesPersonBookings: getSalesPersonBookings,
 };

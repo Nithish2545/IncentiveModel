@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import utility from "./Utility/utilityFunctions";
+import { Avatar } from "@mui/material";
 
 function IncentiveModel() {
   const [DateRange, setDateRange] = useState("This Week"); // Default value set to "This Week"
@@ -9,80 +10,14 @@ function IncentiveModel() {
   const [TotalRevenue, setRevenue] = useState(0);
   const [AvgBookingvalue, setAvgBookingvalue] = useState(0);
   const [groupedData, setgroupedData] = useState({});
-  const [TopPerformer, setTopPerformer] = useState({});
-
-  const downloadCSV = (dataset, person) => {
-    dataset = [dataset.find((entry) => entry.name === person)];
-    if (dataset[0] == null) {
-      return alert("Data not found!");
-    }
-    // Create CSV content
-    const headers = [
-      "name",
-      "name_date",
-      "pickuparea",
-      "pickupDatetime",
-      "awbNumber",
-      "status",
-      "pickupBookedBy",
-      "logisticCost",
-      "actualNoOfPackages",
-      "content",
-    ];
-
-    const rows = [];
-    dataset.forEach((entry) => {
-      Object.keys(entry).forEach((key) => {
-        if (Array.isArray(entry[key]?.bookings)) {
-          const groupRows = entry[key].bookings.map((booking, index) => {
-            if (index === 0) {
-              // First row includes all details
-              return {
-                name: entry.name,
-                name_date: key,
-                ...booking,
-              };
-            } else {
-              // Subsequent rows leave `name` and `name_date` blank
-              return {
-                name: "",
-                name_date: "",
-                ...booking,
-              };
-            }
-          });
-          rows.push(...groupRows, {}); // Add blank row after group
-        }
-      });
-    });
-
-    const csvContent =
-      headers.join(",") +
-      "\n" +
-      rows
-        .map((row) =>
-          headers
-            .map((header) => (row[header] !== undefined ? row[header] : ""))
-            .join(",")
-        )
-        .join("\n");
-
-    // Trigger download
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${person}_dataset.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const [TopPerformer, setTopPerformer] = useState("");
 
   function getSalesPersonBookings(person) {
     return groupedData[person]?.bookings.length
       ? groupedData[person]?.bookings.length
       : 0;
   }
-
+ 
   useEffect(() => {
     async function getData() {
       setRevenue(await utility.getRevenue(DateRange));
@@ -100,26 +35,20 @@ function IncentiveModel() {
   }
 
   function findIncentive(person) {
-    // console.log(
-    //   person,
-    //   utility.IncentiveCalculator(getSalesPersonBookings(person))
-    // );
     return utility.IncentiveCalculator(getSalesPersonBookings(person));
   }
 
-  // console.log(findIncentive("dinesh"));
-
   return (
-    <div className="flex flex-col gap-6 p-6 bg-gray-50 min-h-screen">
+    <div className="flex flex-col gap-8 p-8 bg-gray-50 min-h-screen">
       {/* Filter Options Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h1 className="text-2xl font-semibold text-gray-800 mb-6">
+      <div className="bg-white p-8 rounded-lg shadow-lg">
+        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
           Filter Options
         </h1>
-        <form className="space-y-4">
-          <div className="flex flex-wrap gap-6">
+        <form className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {/* Date Range Filter */}
-            <div className="w-full sm:w-1/2">
+            <div>
               <label
                 htmlFor="date-range"
                 className="block text-sm font-medium text-gray-700 mb-2"
@@ -129,20 +58,17 @@ function IncentiveModel() {
               <select
                 id="date-range"
                 name="dateRange"
-                className="w-full border border-gray-300 rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
                 value={DateRange}
                 onChange={(e) => setDateRange(e.target.value)}
               >
-                <option value="Select" range>
-                  Select range
-                </option>
+                <option value="Select range">Select range</option>
                 <option value="This Week">This Week</option>
                 <option value="Last Week">Last Week</option>
-                {/* <option value="Custom Range">Custom Range</option> */}
               </select>
             </div>
             {/* Month Filter */}
-            <div className="w-full sm:w-1/2">
+            {/* <div>
               <label
                 htmlFor="month"
                 className="block text-sm font-medium text-gray-700 mb-2"
@@ -152,7 +78,7 @@ function IncentiveModel() {
               <select
                 id="month"
                 name="month"
-                className="w-full border border-gray-300 rounded-lg p-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
               >
                 {utility?.months.map((month, index) => (
                   <option key={index} value={`${month} ${currentYear}`}>
@@ -160,83 +86,70 @@ function IncentiveModel() {
                   </option>
                 ))}
               </select>
-            </div>
+            </div> */}
           </div>
-          {/* Custom Range Picker */}
-
-          {/* Apply Filters Button */}
           <button
             type="submit"
-            className="w-fit bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
+            className="w-full sm:w-auto bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
           >
             Apply Filters
           </button>
         </form>
-
-        {/* Display the filtered data */}
-        <div className="mt-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Filtered Data
-          </h2>
-          <ul></ul>
-        </div>
       </div>
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
-          Sales Team Performance
-        </h1>
 
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-4 text-center">
+      {/* Sales Overview Section */}
+      <div className="bg-white p-8 rounded-lg shadow-lg">
+        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
+          Sales Overview
+        </h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {/* Total Bookings */}
-          <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-700">
+          <div className="bg-purple-50 p-6 rounded-lg shadow-sm">
+            <h2 className="text-lg font-medium text-purple-800">
               Total Bookings
             </h2>
             <p className="text-2xl font-bold text-purple-600">
               {TotalBookings}
             </p>
           </div>
-
           {/* Total Revenue */}
-          <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-700">Total Revenue</h2>
+          <div className="bg-green-50 p-6 rounded-lg shadow-sm">
+            <h2 className="text-lg font-medium text-green-800">
+              Total Revenue
+            </h2>
             <p className="text-2xl font-bold text-green-600">₹{TotalRevenue}</p>
           </div>
-
           {/* Average Booking Value */}
-          <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-700">
+          <div className="bg-blue-50 p-6 rounded-lg shadow-sm">
+            <h2 className="text-lg font-medium text-blue-800">
               Avg. Booking Value
             </h2>
             <p className="text-2xl font-bold text-blue-600">
               ₹{AvgBookingvalue}
             </p>
           </div>
-
           {/* Top Performer */}
-          <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
-            <h2 className="text-lg font-medium text-gray-700">Top Performer</h2>
+          <div className="bg-red-50 p-6 rounded-lg shadow-sm">
+            <h2 className="text-lg font-medium text-red-800">Top Performer</h2>
             <p className="text-2xl font-bold text-red-600">
-              {FirtLetterCaps(TopPerformer?.name)}
+              {FirtLetterCaps(TopPerformer)}
             </p>
           </div>
         </div>
       </div>
-
       {/* Sales Team Performance Section */}
       <div>
-        <h1 className="text-2xl font-semibold text-gray-800 mb-6">
+        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
           Sales Team Performance
         </h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {LoginCredentials.map((d) => (
-            <div className="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between gap-4">
+            <div
+              key={d.name}
+              className="bg-white p-6 rounded-lg shadow-lg flex flex-col gap-4"
+            >
               <div className="flex items-center gap-4">
-                <img
-                  src="Group.svg"
-                  className="w-12 h-12 rounded-full"
-                  alt=""
-                />
+                <Avatar alt={FirtLetterCaps(d.name)} src="" />
                 <div>
                   <p className="text-lg font-semibold text-gray-800">
                     {FirtLetterCaps(d.name)}
@@ -250,18 +163,16 @@ function IncentiveModel() {
                   {getSalesPersonBookings(d.name)}
                 </p>
               </div>
-              <button className="bg-gray-100 p-3 rounded-lg flex items-center gap-2 hover:bg-gray-200">
+              <button
+                className="bg-gray-100 p-3 rounded-md flex items-center gap-2 hover:bg-gray-200"
+                onClick={() => utility.downloadCSV(d.name, DateRange)}
+              >
                 <img
                   className="w-5"
-                  src="download-minimalistic-svgrepo-com 1.svg"
-                  alt=""
+                  src="download-minimalistic.svg"
+                  alt="Download icon"
                 />
-                <span
-                  className="text-sm font-medium text-gray-600"
-                  onClick={async () => {
-                    downloadCSV(await utility.transformData(DateRange), d.name);
-                  }}
-                >
+                <span className="text-sm font-medium text-gray-600">
                   Download Report
                 </span>
               </button>
@@ -269,24 +180,25 @@ function IncentiveModel() {
           ))}
         </div>
       </div>
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-800 mb-6">
+      {/* Weekly Incentive Section */}
+      <div className="bg-gray-50">
+        <h1 className="text-4xl font-bold text-gray-800 mb-10 text-center">
           Weekly Incentive (Saturday to Friday)
         </h1>
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+          <table className="min-w-full table-auto bg-white border-collapse border border-gray-300 rounded-lg shadow">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="px-6 py-4 text-center text-lg font-semibold text-gray-700 border-b border-gray-300">
                   Name
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+                <th className="px-6 py-4 text-center text-lg font-semibold text-gray-700 border-b border-gray-300">
                   Bookings
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+                <th className="px-6 py-4 text-center text-lg font-semibold text-gray-700 border-b border-gray-300">
                   Incentive
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">
+                <th className="px-6 py-4 text-center text-lg font-semibold text-gray-700 border-b border-gray-300">
                   Actions
                 </th>
               </tr>
@@ -297,19 +209,19 @@ function IncentiveModel() {
                   key={index}
                   className={`${
                     index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                  } hover:bg-gray-100`}
+                  } hover:bg-gray-100 transition-colors duration-200`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-800">
+                  <td className="px-6 py-4 text-center text-base text-gray-800 font-medium border-b border-gray-300">
                     {row.name}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-800">
+                  <td className="px-6 py-4 text-center text-base text-gray-800 font-medium border-b border-gray-300">
                     {String(getSalesPersonBookings(row.name)).padStart(2, "0")}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-800">
+                  <td className="px-6 py-4 text-center text-base text-gray-800 font-medium border-b border-gray-300">
                     ₹{findIncentive(row.name)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-800">
-                    <button className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 focus:ring-2 focus:ring-purple-500">
+                  <td className="px-6 py-4 text-center border-b border-gray-300">
+                    <button className="text-nowrap bg-purple-600 text-white px-6 py-2 rounded-lg text-base font-semibold hover:bg-purple-700 hover:shadow-md focus:ring-2 focus:ring-purple-400 focus:outline-none transition-all duration-200">
                       View Details
                     </button>
                   </td>
