@@ -4,29 +4,53 @@ import { Avatar } from "@mui/material";
 
 function IncentiveModel() {
   const [DateRange, setDateRange] = useState("This Week"); // Default value set to "This Week"
-  const currentYear = new Date().getFullYear(); // Get the current year
-  const [LoginCredentials, setLoginCredentials] = useState([]);
-  const [TotalBookings, setTotalBookings] = useState(0);
-  const [TotalRevenue, setRevenue] = useState(0);
-  const [AvgBookingvalue, setAvgBookingvalue] = useState(0);
-  const [groupedData, setgroupedData] = useState({});
-  const [TopPerformer, setTopPerformer] = useState("");
+  const [data, setData] = useState({
+    revenue: 0,
+    totalBookings: 0,
+    avgBookingValue: 0,
+    loginCredentials: [],
+    groupedData: {},
+    topPerformer: "",
+  });
 
   function getSalesPersonBookings(person) {
-    return groupedData[person]?.bookings.length
-      ? groupedData[person]?.bookings.length
+    return data.groupedData[person]?.bookings.length
+      ? data.groupedData[person]?.bookings.length
       : 0;
   }
- 
+
   useEffect(() => {
     async function getData() {
-      setRevenue(await utility.getRevenue(DateRange));
-      setTotalBookings(await utility.getTotalBookings(DateRange));
-      setAvgBookingvalue(await utility.AvgBookingValue(DateRange));
-      setLoginCredentials(await utility.fetchLoginCredentials(DateRange));
-      setgroupedData(await utility.groupByPickupBookedBy(DateRange));
-      setTopPerformer(await utility.TopPerformer(DateRange));
+      try {
+        const [
+          revenue,
+          totalBookings,
+          avgBookingValue,
+          loginCredentials,
+          groupedData,
+          topPerformer,
+        ] = await Promise.all([
+          utility.getRevenue(DateRange),
+          utility.getTotalBookings(DateRange),
+          utility.AvgBookingValue(DateRange),
+          utility.fetchLoginCredentials(DateRange),
+          utility.groupByPickupBookedBy(DateRange),
+          utility.TopPerformer(DateRange),
+        ]);
+
+        setData({
+          revenue,
+          totalBookings,
+          avgBookingValue,
+          loginCredentials,
+          groupedData,
+          topPerformer,
+        });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
     }
+
     getData();
   }, [DateRange]);
 
@@ -37,7 +61,6 @@ function IncentiveModel() {
   function findIncentive(person) {
     return utility.IncentiveCalculator(getSalesPersonBookings(person));
   }
-
   return (
     <div className="flex flex-col gap-8 p-8 bg-gray-50 min-h-screen">
       {/* Filter Options Section */}
@@ -67,26 +90,6 @@ function IncentiveModel() {
                 <option value="Last Week">Last Week</option>
               </select>
             </div>
-            {/* Month Filter */}
-            {/* <div>
-              <label
-                htmlFor="month"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Month
-              </label>
-              <select
-                id="month"
-                name="month"
-                className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500"
-              >
-                {utility?.months.map((month, index) => (
-                  <option key={index} value={`${month} ${currentYear}`}>
-                    {month} {currentYear}
-                  </option>
-                ))}
-              </select>
-            </div> */}
           </div>
           <button
             type="submit"
@@ -109,7 +112,7 @@ function IncentiveModel() {
               Total Bookings
             </h2>
             <p className="text-2xl font-bold text-purple-600">
-              {TotalBookings}
+              {data.totalBookings}
             </p>
           </div>
           {/* Total Revenue */}
@@ -117,7 +120,7 @@ function IncentiveModel() {
             <h2 className="text-lg font-medium text-green-800">
               Total Revenue
             </h2>
-            <p className="text-2xl font-bold text-green-600">₹{TotalRevenue}</p>
+            <p className="text-2xl font-bold text-green-600">₹{data.revenue}</p>
           </div>
           {/* Average Booking Value */}
           <div className="bg-blue-50 p-6 rounded-lg shadow-sm">
@@ -125,14 +128,14 @@ function IncentiveModel() {
               Avg. Booking Value
             </h2>
             <p className="text-2xl font-bold text-blue-600">
-              ₹{AvgBookingvalue}
+              ₹{data.avgBookingValue}
             </p>
           </div>
           {/* Top Performer */}
           <div className="bg-red-50 p-6 rounded-lg shadow-sm">
             <h2 className="text-lg font-medium text-red-800">Top Performer</h2>
             <p className="text-2xl font-bold text-red-600">
-              {FirtLetterCaps(TopPerformer)}
+              {FirtLetterCaps(data.topPerformer)}
             </p>
           </div>
         </div>
@@ -143,7 +146,7 @@ function IncentiveModel() {
           Sales Team Performance
         </h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {LoginCredentials.map((d) => (
+          {data.loginCredentials.map((d) => (
             <div
               key={d.name}
               className="bg-white p-6 rounded-lg shadow-lg flex flex-col gap-4"
@@ -204,7 +207,7 @@ function IncentiveModel() {
               </tr>
             </thead>
             <tbody>
-              {LoginCredentials.map((row, index) => (
+              {data.loginCredentials.map((row, index) => (
                 <tr
                   key={index}
                   className={`${
